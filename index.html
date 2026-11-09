@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Công cụ phân tích dữ liệu ảnh & Định vị kép chuyên nghiệp</title>
+    <style>
+        :root {
+            --primary-color: #007aff;
+            --bg-color: #f5f7fa;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+            --text-sub: #666666;
+            --border-color: #e5e5e7;
+            --success-color: #34c759;
+            --warning-color: #ff9500;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+        }
+        .upload-zone {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            border: 2px dashed var(--primary-color);
+            border-radius: 12px;
+            background: #f0f7ff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .upload-zone:hover {
+            background: #e1f0ff;
+        }
+        .upload-zone span {
+            color: var(--primary-color);
+            font-size: 16px;
+            font-weight: 600;
+            pointer-events: none;
+        }
+        #imageInput {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; cursor: pointer;
+        }
+        .status {
+            margin-top: 15px;
+            font-size: 14px;
+            color: var(--text-sub);
+            font-weight: 500;
+        }
+        #previewImg {
+            max-width: 100%;
+            max-height: 250px;
+            margin-top: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .result-table, .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            text-align: left;
+            font-size: 14px;
+        }
+        .result-table th, .result-table td, .history-table th, .history-table td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            word-break: break-word;
+        }
+        .result-table th, .history-table th {
+            background-color: #f8f9fa;
+            color: #444;
+            font-weight: 600;
+        }
+        .maps-btn {
+            display: inline-block;
+            background: var(--success-color);
+            color: #fff;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        .maps-btn:hover {
+            opacity: 0.9;
+        }
+        .history-section {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+        }
+        .history-title {
+            margin-top: 0;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .btn-clear {
+            font-size: 12px;
+            color: #ff3b30;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-weight: 500;
+        }
+        .no-history {
+            font-size: 13px;
+            color: var(--text-sub);
+            text-align: center;
+            padding: 10px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="upload-zone">
+            <span>📸 Nhấp hoặc Kéo thả bất kỳ ảnh nào vào đây</span>
+            <input type="file" id="imageInput" accept="image/*">
+        </div>
+        
+        <div id="status" class="status" style="display: none;"></div>
+        <img id="previewImg" alt="Xem trước ảnh">
+
+        <table class="result-table" id="resultTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th style="width: 45%;">Thông số chi tiết ảnh và vị trí</th>
+                    <th>Giá trị</th>
+                </tr>
+            </thead>
+            <tbody id="resultBody"></tbody>
+        </table>
+    </div>
+
+    <div class="history-section">
+        <div class="history-title">
+            <span>📜 Lịch sử phân tích dữ liệu</span>
+            <button class="btn-clear" id="clearHistory">Xóa tất cả</button>
+        </div>
+        <div id="noHistory" class="no-history">Chưa có lịch sử lưu trữ.</div>
+        <table class="history-table" id="historyTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Tên file</th>
+                    <th>Thiết bị chụp</th>
+                    <th>Trạng thái GPS</th>
+                </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+        </table>
+    </div>
+
+    <!-- HỆ THỐNG XỬ LÝ NHỊ PHÂN OFFLINE KẾT HỢP GEOLOCATION API -->
+    <script>
+        const imageInput = document.getElementById("imageInput");
+        const statusDiv = document.getElementById("status");
+        const previewImg = document.getElementById("previewImg");
+        const resultTable = document.getElementById("resultTable");
+        const resultBody = document.getElementById("resultBody");
+        const historyTable = document.getElementById("historyTable");
+        const historyBody = document.getElementById("historyBody");
+        const noHistory = document.getElementById("noHistory");
+        const clearHistoryBtn = document.getElementById("clearHistory");
+
+        const EXIF_TAGS = {
+            0x010f: "Hãng máy", 0x0110: "Dòng máy", 0x0132: "Ngày giờ chụp",
+            0x8827: "ISO", 0x829d: "Khẩu độ", 0x829a: "Tốc độ", 0x920a: "Tiêu cự"
+        };
+
+        window.addEventListener("DOMContentLoaded", loadHistory);
+
+        // KHI NGƯỜI DÙNG CHỌN FILE ẢNH
+        imageInput.addEventListener("change", function() {
+            if (this.files.length === 0) return;
+            const file = this.files[0]; 
+
+            statusDiv.style.display = "block";
+            statusDiv.innerText = "⏳ Hệ thống đang xác vị trí thiết bị và giải mã cấu trúc ảnh...";
+            resultTable.style.display = "none";
+            previewImg.style.display = "none";
+            resultBody.innerHTML = "";
+
+            // 1. Tạo ảnh hiển thị xem trước (Preview)
+            const urlReader = new FileReader();
+            urlReader.onload = function(e) {
+                previewImg.src = e.target.result;
+                previewImg.style.display = "inline-block";
+            };
+            urlReader.readAsDataURL(file);
+
+            // Khởi tạo giá trị mặc định cho vị trí người gửi ảnh
+            let deviceLat = "Người dùng từ chối chia sẻ hoặc thiết bị chặn quyền định vị";
+            let deviceLon = "Người dùng từ chối chia sẻ hoặc thiết bị chặn quyền định vị";
+
+            // 2. KÍCH HOẠT LẤY VỊ TRÍ HIỆN TẠI CỦA THIẾT BỊ LÚC GỬI ẢNH (Bất đồng bộ)
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    deviceLat = position.coords.latitude.toFixed(6) + " (Vĩ độ nơi gửi)";
+                    deviceLon = position.coords.longitude.toFixed(6) + " (Kinh độ nơi gửi)";
+                    // Tạo nút xem vị trí thiết bị lúc tải lên
+                    deviceLon += `<br><a class="maps-btn" style="background:var(--warning-color);" href="https://google.com{position.coords.latitude},${position.coords.longitude}" target="_blank">🍊 Xem nơi gửi ảnh</a>`;
+                    
+                    // Chuyển tiếp sang bước đọc dữ liệu EXIF file ảnh
+                    docExifAnh(file, deviceLat, deviceLon);
+                }, function(error) {
+                    // Xử lý nếu người dùng bấm "Từ chối" cung cấp vị trí trình duyệt
+                    docExifAnh(file, deviceLat, deviceLon);
+                }, { enableHighAccuracy: true, timeout: 5000 });
+            } else {
+                deviceLat = "Trình duyệt không hỗ trợ định vị API";
+                deviceLon = "Trình duyệt không hỗ trợ định vị API";
+                docExifAnh(file, deviceLat, deviceLon);
+            }
+        });
+
+        // HÀM BÓC TÁCH DỮ LIỆU EXIF CHẠY NỐI TIẾP CỤC BỘ
+        function docExifAnh(file, deviceLat, deviceLon) {
+            const binReader = new FileReader();
+            binReader.onload = function(e) {
+                const buffer = e.target.result;
+                const view = new DataView(buffer);
+                let exifData = {};
+
+                try {
+                    if (view.byteLength > 2 && view.getUint8(0) === 0xFF && view.getUint8(1) === 0xD8) {
+                        let offset = 2;
+                        while (offset < view.byteLength) {
+                            if (view.getUint8(offset) !== 0xFF) break;
+                            let marker = view.getUint8(offset + 1);
+                            if (marker === 0xE1) {
+                                if (view.getUint32(offset + 4) === 0x45786966) {
+                                    exifData = parseExif(view, offset + 10);
+                                }
+                                break;
+}
+offset += 2 + view.getUint16(offset + 2);
+}
+}
+} catch (err) {
+console.log("Bỏ qua lỗi cấu trúc.");
+}
+statusDiv.style.display = "none";
+resultTable.style.display = "table";
+const deviceName = (exifData["Hãng máy"] || exifData["Dòng máy"])
+? ${exifData["Hãng máy"] || ""} ${exifData["Dòng máy"] || ""}.trim()
+: "Không rõ thiết bị / Ảnh đã bị ẩn EXIF";
+// Kiểm tra và tạo nút xem vị trí gốc lúc chụp ảnh
+let mapsLink = "";
+let latDisplay = exifData["vido"] || "N/A (Ảnh không có GPS gốc)";
+let lonDisplay = exifData["kinhdo"] || "N/A (Ảnh không có GPS gốc)";
+if (exifData["latDec"] && exifData["lonDec"]) {
+mapsLink = <br><a class="maps-btn" href="https://google.com{exifData["latDec"]},${exifData["lonDec"]}" target="_blank">📍 Xem nơi chụp ảnh gốc</a>;
+}
+const dataToShow = {
+"Tên tệp tin": file.name,
+"Kích thước tệp": (file.size / 1024).toFixed(1) + " KB",
+"Định dạng tệp": file.type || "image/jpeg",
+"Thiết bị chụp ảnh": deviceName,
+"Ngày giờ chụp": exifData["Ngày giờ chụp"] || "Không tìm thấy dữ liệu thời gian",
+"Vĩ độ gốc của Ảnh (Nơi chụp)": latDisplay,
+"Kinh độ gốc của Ảnh (Nơi chụp)": lonDisplay + mapsLink,
+"Vĩ độ máy người gửi (Nơi gửi)": deviceLat,
+"Kinh độ máy người gửi (Nơi gửi)": deviceLon
+};
+for (const [key, value] of Object.entries(dataToShow)) {
+const row = <tr><td><strong>${key}</strong></td><td>${value}</td></tr>;
+resultBody.insertAdjacentHTML('beforeend', row);
+}
+saveToHistory({
+name: file.name,
+device: deviceName,
+gps: latDisplay !== "N/A (Ảnh không có GPS gốc)" ? "Có vị trí gốc" : "Chỉ có vị trí gửi"
+});
+};
+binReader.readAsArrayBuffer(file);
+imageInput.value = ""; // Đã reset giá trị đầu vào chuẩn xác
+}
+// CÁC HÀM PHỤ TRỢ GIẢI MÃ NHỊ PHÂN EXIF GỐC
+function parseExif(view, startOffset) {
+let tags = {};
+if (startOffset + 6 > view.byteLength) return tags;
+let isLittleEndian = view.getUint16(startOffset) === 0x4949;
+let firstIFDOffset = view.getUint32(startOffset + 4, isLittleEndian);
+let dirOffset = startOffset + firstIFDOffset;
+readIFD(view, startOffset, dirOffset, isLittleEndian, tags);
+if (tags.ExifPointer) {
+readIFD(view, startOffset, startOffset + tags.ExifPointer, isLittleEndian, tags);
+}
+if (tags.GpsPointer) {
+readGPS(view, startOffset, startOffset + tags.GpsPointer, isLittleEndian, tags);
+}
+return tags;
+}
+function readIFD(view, startOffset, dirOffset, isLittleEndian, tags) {
+if (dirOffset + 2 > view.byteLength) return;
+let entries = view.getUint16(dirOffset, isLittleEndian);
+for (let i = 0; i < entries; i++) {
+let entryOffset = dirOffset + 2 + i * 12;
+if (entryOffset + 12 > view.byteLength) break;
+let tag = view.getUint16(entryOffset, isLittleEndian);
+let type = view.getUint16(entryOffset + 2, isLittleEndian);
+let count = view.getUint32(entryOffset + 4, isLittleEndian);
+let valueOffset = view.getUint32(entryOffset + 8, isLittleEndian);
+if (tag === 0x8769) { tags.ExifPointer = valueOffset; continue; }
+if (tag === 0x8825) { tags.GpsPointer = valueOffset; continue; }
+let tagName = EXIF_TAGS[tag];
+if (!tagName) continue;
+let actualOffset = (type === 2 && count > 4) || (type === 5) ? startOffset + valueOffset : entryOffset + 8;
+if (actualOffset > view.byteLength) continue;
+tags[tagName] = getTagValue(view, type, count, actualOffset, isLittleEndian, tag);
+}
+}
+function readGPS(view, startOffset, dirOffset, isLittleEndian, tags) {
+if (dirOffset + 2 > view.byteLength) return;
+let entries = view.getUint16(dirOffset, isLittleEndian);
+let latCo, lonCo, latRef = 'N', lonRef = 'E';
+for (let i = 0; i < entries; i++) {
+let entryOffset = dirOffset + 2 + i * 12;
+if (entryOffset + 12 > view.byteLength) break;
+let tag = view.getUint16(entryOffset, isLittleEndian);
+let type = view.getUint16(entryOffset + 2, isLittleEndian);
+let count = view.getUint32(entryOffset + 4, isLittleEndian);
+let valueOffset = view.getUint32(entryOffset + 8, isLittleEndian);
+let actualOffset = (type === 5 || (type === 2 && count > 4)) ? startOffset + valueOffset : entryOffset + 8;
+if (tag === 1) latRef = String.fromCharCode(view.getUint8(entryOffset + 8));
+if (tag === 3) lonRef = String.fromCharCode(view.getUint8(entryOffset + 8));
+if (tag === 2) latCo = readRationalArray(view, actualOffset, count, isLittleEndian);
+if (tag === 4) lonCo = readRationalArray(view, actualOffset, count, isLittleEndian);
+}
+if (latCo && latCo.length >= 3 && lonCo && lonCo.length >= 3) {
+let latDec = latCo[0] + latCo[1]/60 + latCo[2]/3600;
+let lonDec = lonCo[0] + lonCo[1]/60 + lonCo[2]/3600;
+if (latRef === 'S') latDec = -latDec;
+if (lonRef === 'W') lonDec = -lonDec;
+tags["latDec"] = latDec;
+tags["lonDec"] = lonDec;
+tags["vido"] = ${latCo[0]}°${latCo[1]}'${latCo[2].toFixed(1)}"${latRef} (${latDec.toFixed(6)});
+tags["kinhdo"] = ${lonCo[0]}°${lonCo[1]}'${lonCo[2].toFixed(1)}"${lonRef} (${lonDec.toFixed(6)});
+}
+}
+function readRationalArray(view, offset, count, isLittleEndian) {
+let arr = [];
+for (let i = 0; i < count; i++) {
+let num = view.getUint32(offset + i * 8, isLittleEndian);
+let den = view.getUint32(offset + 4 + i * 8, isLittleEndian);
+arr.push(den !== 0 ? num / den : 0);
+}
+return arr;
+}
+function getTagValue(view, type, count, offset, isLittleEndian, tag) {
+if (type === 2) {
+let str = "";
+for (let j = 0; j < count - 1; j++) {
+str += String.fromCharCode(view.getUint8(offset + j));
+}
+return str.trim();
+} else if (type === 3) {
+return view.getUint16(offset, isLittleEndian);
+} else if (type === 4) {
+return view.getUint32(offset, isLittleEndian);
+} else if (type === 5) {
+let num = view.getUint32(offset, isLittleEndian);
+let den = view.getUint32(offset + 4, isLittleEndian);
+if (den === 0) return "N/A";
+if (tag === 0x829a) return num >= den ? (num / den).toFixed(1) + "s" : 1/${Math.round(den / num)}s;
+return (num / den).toFixed(2).replace(".00", "");
+}
+return "";
+}
+function saveToHistory(item) {
+let history = JSON.parse(localStorage.getItem("exif_history")) || [];
+history.unshift(item);
+if (history.length > 10) history.pop();
+localStorage.setItem("exif_history", JSON.stringify(history));
+loadHistory();
+}
+function loadHistory() {
+let history = JSON.parse(localStorage.getItem("exif_history")) || [];
+historyBody.innerHTML = "";
+if (history.length === 0) {
+noHistory.style.display = "block";
+historyTable.style.display = "none";
+} else {
+noHistory.style.display = "none";
+historyTable.style.display = "table";
+history.forEach(item => {
+const row = <tr><td>${item.name}</td><td>${item.device}</td><td>${item.gps}</td></tr>;
+historyBody.insertAdjacentHTML('beforeend', row);
+});
+}
+}
+clearHistoryBtn.addEventListener("click", function() {
+if (confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử quét không?")) {
+localStorage.removeItem("exif_history");
+loadHistory();
+}
+});
