@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Công cụ phân tích dữ liệu ảnh & Định vị kép chuyên nghiệp</title>
+    <title>Công cụ phân tích dữ liệu ảnh chuyên nghiệp</title>
     <style>
         :root {
             --primary-color: #007aff;
@@ -13,7 +13,6 @@
             --text-sub: #666666;
             --border-color: #e5e5e7;
             --success-color: #34c759;
-            --warning-color: #ff9500;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -156,7 +155,7 @@
         <table class="result-table" id="resultTable" style="display: none;">
             <thead>
                 <tr>
-                    <th style="width: 45%;">Thông số chi tiết ảnh và vị trí</th>
+                    <th style="width: 45%;">Thông số chi tiết ảnh</th>
                     <th>Giá trị</th>
                 </tr>
             </thead>
@@ -175,14 +174,14 @@
                 <tr>
                     <th>Tên file</th>
                     <th>Thiết bị chụp</th>
-                    <th>Trạng thái GPS</th>
+                    <th>Tọa độ gốc (Nơi chụp)</th>
                 </tr>
             </thead>
             <tbody id="historyBody"></tbody>
         </table>
     </div>
 
-    <!-- HỆ THỐNG XỬ LÝ NHỊ PHÂN OFFLINE KẾT HỢP GEOLOCATION API -->
+    <!-- HỆ THỐNG GIẢI MÃ NHỊ PHÂN EXIF OFFLINE NGUYÊN BẢN (ĐÃ FIX CHUẨN THỂ FILE) -->
     <script>
         const imageInput = document.getElementById("imageInput");
         const statusDiv = document.getElementById("status");
@@ -201,18 +200,19 @@
 
         window.addEventListener("DOMContentLoaded", loadHistory);
 
-        // KHI NGƯỜI DÙNG CHỌN FILE ẢNH
         imageInput.addEventListener("change", function() {
             if (this.files.length === 0) return;
+            
+            // SỬA LỖI CỐT LÕI: Lấy phần tử file đầu tiên [0] từ danh sách để trình duyệt không bị crash
             const file = this.files[0]; 
 
             statusDiv.style.display = "block";
-            statusDiv.innerText = "⏳ Hệ thống đang xác vị trí thiết bị và giải mã cấu trúc ảnh...";
+            statusDiv.innerText = "⏳ Hệ thống đang bóc tách cấu trúc nhị phân ảnh...";
             resultTable.style.display = "none";
             previewImg.style.display = "none";
             resultBody.innerHTML = "";
 
-            // 1. Tạo ảnh hiển thị xem trước (Preview)
+            // Hiển thị ảnh xem trước (Preview)
             const urlReader = new FileReader();
             urlReader.onload = function(e) {
                 previewImg.src = e.target.result;
@@ -220,33 +220,7 @@
             };
             urlReader.readAsDataURL(file);
 
-            // Khởi tạo giá trị mặc định cho vị trí người gửi ảnh
-            let deviceLat = "Người dùng từ chối chia sẻ hoặc thiết bị chặn quyền định vị";
-            let deviceLon = "Người dùng từ chối chia sẻ hoặc thiết bị chặn quyền định vị";
-
-            // 2. KÍCH HOẠT LẤY VỊ TRÍ HIỆN TẠI CỦA THIẾT BỊ LÚC GỬI ẢNH (Bất đồng bộ)
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    deviceLat = position.coords.latitude.toFixed(6) + " (Vĩ độ nơi gửi)";
-                    deviceLon = position.coords.longitude.toFixed(6) + " (Kinh độ nơi gửi)";
-                    // Tạo nút xem vị trí thiết bị lúc tải lên
-                    deviceLon += `<br><a class="maps-btn" style="background:var(--warning-color);" href="https://google.com{position.coords.latitude},${position.coords.longitude}" target="_blank">🍊 Xem nơi gửi ảnh</a>`;
-                    
-                    // Chuyển tiếp sang bước đọc dữ liệu EXIF file ảnh
-                    docExifAnh(file, deviceLat, deviceLon);
-                }, function(error) {
-                    // Xử lý nếu người dùng bấm "Từ chối" cung cấp vị trí trình duyệt
-                    docExifAnh(file, deviceLat, deviceLon);
-                }, { enableHighAccuracy: true, timeout: 5000 });
-            } else {
-                deviceLat = "Trình duyệt không hỗ trợ định vị API";
-                deviceLon = "Trình duyệt không hỗ trợ định vị API";
-                docExifAnh(file, deviceLat, deviceLon);
-            }
-        });
-
-        // HÀM BÓC TÁCH DỮ LIỆU EXIF CHẠY NỐI TIẾP CỤC BỘ
-        function docExifAnh(file, deviceLat, deviceLon) {
+            // Đọc dữ liệu nhị phân EXIF gốc cục bộ
             const binReader = new FileReader();
             binReader.onload = function(e) {
                 const buffer = e.target.result;
@@ -264,35 +238,40 @@
                                     exifData = parseExif(view, offset + 10);
                                 }
                                 break;
-}
-offset += 2 + view.getUint16(offset + 2);
-}
-}
-} catch (err) {
-console.log("Bỏ qua lỗi cấu trúc.");
-}
-statusDiv.style.display = "none";
-resultTable.style.display = "table";
-const deviceName = (exifData["Hãng máy"] || exifData["Dòng máy"])
-? ${exifData["Hãng máy"] || ""} ${exifData["Dòng máy"] || ""}.trim()
-: "Không rõ thiết bị / Ảnh đã bị ẩn EXIF";
-// Kiểm tra và tạo nút xem vị trí gốc lúc chụp ảnh
-let mapsLink = "";
-let latDisplay = exifData["vido"] || "N/A (Ảnh không có GPS gốc)";
-let lonDisplay = exifData["kinhdo"] || "N/A (Ảnh không có GPS gốc)";
-if (exifData["latDec"] && exifData["lonDec"]) {
-mapsLink = <br><a class="maps-btn" href="https://google.com{exifData["latDec"]},${exifData["lonDec"]}" target="_blank">📍 Xem nơi chụp ảnh gốc</a>;
-}
-const dataToShow = {
-"Tên tệp tin": file.name,
-"Kích thước tệp": (file.size / 1024).toFixed(1) + " KB",
-"Định dạng tệp": file.type || "image/jpeg",
-"Thiết bị chụp ảnh": deviceName,
-"Ngày giờ chụp": exifData["Ngày giờ chụp"] || "Không tìm thấy dữ liệu thời gian",
-"Vĩ độ gốc của Ảnh (Nơi chụp)": latDisplay,
-"Kinh độ gốc của Ảnh (Nơi chụp)": lonDisplay + mapsLink,
-"Vĩ độ máy người gửi (Nơi gửi)": deviceLat,
-"Kinh độ máy người gửi (Nơi gửi)": deviceLon
+                            }
+                            offset += 2 + view.getUint16(offset + 2);
+                        }
+                    }
+                } catch (err) {
+                    console.log("Bỏ qua lỗi cấu trúc.");
+                }
+
+                statusDiv.style.display = "none";
+                resultTable.style.display = "table";
+
+                const deviceName = (exifData["Hãng máy"] || exifData["Dòng máy"]) 
+                    ? `${exifData["Hãng máy"] || ""} ${exifData["Dòng máy"] || ""}`.trim() 
+                    : "Không rõ thiết bị / Ảnh đã bị ẩn EXIF";
+
+                let mapsLink = "";
+                let latDisplay = exifData["vido"] || "N/A (Ảnh không có GPS gốc)";
+                let lonDisplay = exifData["kinhdo"] || "N/A (Ảnh không có GPS gốc)";
+                if (exifData["latDec"] && exifData["lonDec"]) {
+                    mapsLink = `<br><a class="maps-btn" href="https://google.com{exifData["latDec"]},${exifData["lonDec"]}" target="_blank">📍 Xem nơi chụp ảnh gốc</a>`;
+                }
+
+                const dataToShow = {
+                    "Tên tệp tin": file.name,
+                    "Kích thước tệp": (file.size / 1024).toFixed(1) + " KB",
+                    "Định dạng tệp": file.type || "image/jpeg",
+                    "Thiết bị chụp ảnh": deviceName,
+                    "Ngày giờ chụp": exifData["Ngày giờ chụp"] || "Không tìm thấy dữ liệu thời gian",
+                    "Chỉ số ISO": exifData["ISO"] || "N/A",
+                    "Khẩu độ (F-Number)": exifData["Khẩu độ"] ? `f/${exifData["Khẩu độ"]}` : "N/A",
+"Tốc độ màn trập": exifData["Tốc độ"] || "N/A",
+"Tiêu cự ống kính": exifData["Tiêu cự"] ? exifData["Tiêu cự"] + " mm" : "N/A",
+"Vĩ độ GPS (Latitude)": latDisplay,
+"Kinh độ GPS (Longitude)": lonDisplay + mapsLink
 };
 for (const [key, value] of Object.entries(dataToShow)) {
 const row = <tr><td><strong>${key}</strong></td><td>${value}</td></tr>;
@@ -301,13 +280,13 @@ resultBody.insertAdjacentHTML('beforeend', row);
 saveToHistory({
 name: file.name,
 device: deviceName,
-gps: latDisplay !== "N/A (Ảnh không có GPS gốc)" ? "Có vị trí gốc" : "Chỉ có vị trí gửi"
+gps: latDisplay !== "N/A (Ảnh không có GPS gốc)" ? "Có tọa độ gốc" : "Không có tọa độ"
 });
 };
 binReader.readAsArrayBuffer(file);
-imageInput.value = ""; // Đã reset giá trị đầu vào chuẩn xác
-}
-// CÁC HÀM PHỤ TRỢ GIẢI MÃ NHỊ PHÂN EXIF GỐC
+this.value = "";
+});
+// GIẢI MÃ CẤU TRÚC EXIF TIFF HEADER
 function parseExif(view, startOffset) {
 let tags = {};
 if (startOffset + 6 > view.byteLength) return tags;
@@ -427,3 +406,5 @@ localStorage.removeItem("exif_history");
 loadHistory();
 }
 });
+
+
