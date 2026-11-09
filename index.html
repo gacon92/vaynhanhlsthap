@@ -181,7 +181,7 @@
         </table>
     </div>
 
-    <!-- HỆ THỐNG XỬ LÝ SỰ KIỆN TOÀN DIỆN -->
+    <!-- HỆ THỐNG XỬ LÝ NHỊ PHÂN OFFLINE AN TOÀN TUYỆT ĐỐI -->
     <script>
         const imageInput = document.getElementById("imageInput");
         const statusDiv = document.getElementById("status");
@@ -203,16 +203,14 @@
         imageInput.addEventListener("change", function() {
             if (!this.files || this.files.length === 0) return;
             
-            // Trích xuất đối tượng File chuẩn
             const fileItem = this.files[0]; 
 
             statusDiv.style.display = "block";
-            statusDiv.innerText = "⏳ Hệ thống đang xử lý dữ liệu và ảnh xem trước...";
+            statusDiv.innerText = "⏳ Hệ thống đang bóc tách cấu trúc nhị phân ảnh...";
             resultTable.style.display = "none";
             previewImg.style.display = "none";
             resultBody.innerHTML = "";
 
-            // BƯỚC 1: Đọc và hiển thị ảnh preview độc lập (Cam kết chạy ngay lập tức)
             const urlReader = new FileReader();
             urlReader.onload = function(e) {
                 previewImg.src = e.target.result;
@@ -220,14 +218,12 @@
             };
             urlReader.readAsDataURL(fileItem);
 
-            // BƯỚC 2: Phân tích khối byte nhị phân EXIF sâu
             const binReader = new FileReader();
             binReader.onload = function(e) {
                 const buffer = e.target.result;
                 const view = new DataView(buffer);
                 let exifData = {};
 
-                // Chỉ giải mã nhị phân nếu là cấu trúc JPEG, nếu không sẽ bỏ qua tránh treo code
                 if (view.byteLength > 2 && view.getUint8(0) === 0xFF && view.getUint8(1) === 0xD8) {
                     try {
                         let offset = 2;
@@ -243,44 +239,44 @@
                             offset += 2 + view.getUint16(offset + 2);
                         }
                     } catch (err) {
-                        console.log("Cấu trúc ảnh không hỗ trợ đọc thẻ EXIF.");
+                        console.log("Không đọc được cấu trúc EXIF.");
                     }
                 }
 
-                // BƯỚC 3: Xuất dữ liệu ra màn hình (Bất kể ảnh có EXIF hay không)
                 statusDiv.style.display = "none";
                 resultTable.style.display = "table";
 
                 const deviceName = (exifData["Hãng máy"] || exifData["Dòng máy"]) 
-                    ? `${exifData["Hãng máy"] || ""} ${exifData["Dòng máy"] || ""}`.trim() 
-                    : "Không có dữ liệu EXIF (Ảnh chụp màn hình hoặc gửi qua mạng xã hội)";
+                    ? (exifData["Hãng máy"] || "") + " " + (exifData["Dòng máy"] || "")
+                    : "N/A (Ảnh không có dữ liệu EXIF)";
 
                 let mapsLink = "";
                 let latDisplay = exifData["vido"] || "N/A";
                 let lonDisplay = exifData["kinhdo"] || "N/A";
                 if (exifData["latDec"] && exifData["lonDec"]) {
-                    mapsLink = `<br><a class="maps-btn" href="https://google.com{exifData["latDec"]},${exifData["lonDec"]}" target="_blank">📍 Xem nơi chụp ảnh gốc</a>`;
+                    mapsLink = '<br><a class="maps-btn" href="https://google.com' + exifData["latDec"] + ',' + exifData["lonDec"] + '" target="_blank">📍 Xem nơi chụp ảnh gốc</a>';
                 }
 
                 const dataToShow = {
                     "Tên tệp tin": fileItem.name,
                     "Kích thước tệp": (fileItem.size / 1024).toFixed(1) + " KB",
                     "Định dạng tệp": fileItem.type || "image/jpeg",
-                    "Thiết bị chụp ảnh": deviceName,
+                    "Thiết bị chụp ảnh": deviceName.trim(),
                     "Ngày giờ chụp": exifData["Ngày giờ chụp"] || "N/A",
-"Chỉ số ISO": exifData["ISO"] || "N/A",
-"Khẩu độ (F-Number)": exifData["Khẩu độ"] ? f/${exifData["Khẩu độ"]} : "N/A",
-"Tốc độ màn trập": exifData["Tốc độ"] || "N/A",
-"Vĩ độ GPS (Latitude)": latDisplay,
+                    "Chỉ số ISO": exifData["ISO"] || "N/A",
+                    "Khẩu độ (F-Number)": exifData["Khẩu độ"] ? "f/" + exifData["Khẩu độ"] : "N/A",
+                    "Tốc độ màn trập": exifData["Tốc độ"] || "N/A",
+                    "Tiêu cự ống kính": exifData["Tiêu cự"] ? exifData["Tiêu cự"] + " mm" : "N/A",
+                    "Vĩ độ GPS (Latitude)": latDisplay,
 "Kinh độ GPS (Longitude)": lonDisplay + mapsLink
 };
 for (const [key, value] of Object.entries(dataToShow)) {
-const row = <tr><td><strong>${key}</strong></td><td>${value}</td></tr>;
+const row = "" + key + "" + value + "";
 resultBody.insertAdjacentHTML('beforeend', row);
 }
 saveToHistory({
 name: fileItem.name,
-device: deviceName === "Không có dữ liệu EXIF (Ảnh chụp màn hình hoặc gửi qua mạng xã hội)" ? "Không có EXIF" : deviceName,
+device: deviceName.trim(),
 gps: latDisplay !== "N/A" ? "Có tọa độ" : "Không có tọa độ"
 });
 };
@@ -324,7 +320,7 @@ tags[tagName] = getTagValue(view, type, count, actualOffset, isLittleEndian, tag
 function readGPS(view, startOffset, dirOffset, isLittleEndian, tags) {
 if (dirOffset + 2 > view.byteLength) return;
 let entries = view.getUint16(dirOffset, isLittleEndian);
-let latCo, lonCo, latRef = 'N', lonRef = 'E';
+let latCo = null, lonCo = null, latRef = 'N', lonRef = 'E';
 for (let i = 0; i < entries; i++) {
 let entryOffset = dirOffset + 2 + i * 12;
 if (entryOffset + 12 > view.byteLength) break;
@@ -345,8 +341,8 @@ if (latRef === 'S') latDec = -latDec;
 if (lonRef === 'W') lonDec = -lonDec;
 tags["latDec"] = latDec;
 tags["lonDec"] = lonDec;
-tags["vido"] = ${latCo[0]}°${latCo[1]}'${latCo[2].toFixed(1)}"${latRef} (${latDec.toFixed(6)});
-tags["kinhdo"] = ${lonCo[0]}°${lonCo[1]}'${lonCo[2].toFixed(1)}"${lonRef} (${lonDec.toFixed(6)});
+tags["vido"] = latCo[0] + "°" + latCo[1] + "'" + latCo[2].toFixed(1) + '"' + latRef + " (" + latDec.toFixed(6) + ")";
+tags["kinhdo"] = lonCo[0] + "°" + lonCo[1] + "'" + lonCo[2].toFixed(1) + '"' + lonRef + " (" + lonDec.toFixed(6) + ")";
 }
 }
 function readRationalArray(view, offset, count, isLittleEndian) {
@@ -373,7 +369,7 @@ return view.getUint32(offset, isLittleEndian);
 let num = view.getUint32(offset, isLittleEndian);
 let den = view.getUint32(offset + 4, isLittleEndian);
 if (den === 0) return "N/A";
-if (tag === 0x829a) return num >= den ? (num / den).toFixed(1) + "s" : 1/${Math.round(den / num)}s;
+if (tag === 0x829a) return num >= den ? (num / den).toFixed(1) + "s" : "1/" + Math.round(den / num) + "s";
 return (num / den).toFixed(2).replace(".00", "");
 }
 return "";
@@ -395,7 +391,7 @@ historyTable.style.display = "none";
 noHistory.style.display = "none";
 historyTable.style.display = "table";
 history.forEach(item => {
-const row = <tr><td>${item.name}</td><td>${item.device}</td><td>${item.gps}</td></tr>;
+const row = "" + item.name + "" + item.device + "" + item.gps + "";
 historyBody.insertAdjacentHTML('beforeend', row);
 });
 }
